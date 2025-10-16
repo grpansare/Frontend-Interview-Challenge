@@ -14,7 +14,12 @@
 
 'use client';
 
-import type { Appointment, Doctor } from '@/types';
+import { useMemo } from 'react';
+import { format, addDays, isSameDay } from 'date-fns';
+import { Grid3X3, Clock, CalendarX } from 'lucide-react';
+import type { Appointment, Doctor, TimeSlot, PopulatedAppointment, AppointmentType } from '@/types';
+import { APPOINTMENT_TYPE_CONFIG, DEFAULT_CALENDAR_CONFIG } from '@/types';
+import { appointmentService } from '@/services/appointmentService';
 
 interface WeekViewProps {
   appointments: Appointment[];
@@ -23,147 +28,253 @@ interface WeekViewProps {
 }
 
 /**
- * WeekView Component
- *
- * Renders a weekly calendar grid with appointments.
- *
- * TODO: Implement this component
- *
- * Architecture suggestions:
- * 1. Generate an array of 7 dates (Mon-Sun) from weekStartDate
- * 2. Generate time slots (same as DayView: 8 AM - 6 PM)
- * 3. Create a grid: rows = time slots, columns = days
- * 4. Position appointments in the correct cell (day + time)
- *
- * Consider:
- * - How to make the grid scrollable horizontally on mobile?
- * - How to show day names and dates in headers?
- * - How to handle appointments that span multiple hours?
- * - Should you reuse logic from DayView?
+ * Compact AppointmentCard for week view
  */
-export function WeekView({ appointments, doctor, weekStartDate }: WeekViewProps) {
-  /**
-   * TODO: Generate array of 7 dates (Monday through Sunday)
-   *
-   * Starting from weekStartDate, create an array of the next 7 days
-   */
-  function getWeekDays(): Date[] {
-    // TODO: Implement week days generation
-    // Example:
-    // return [
-    //   new Date(weekStartDate), // Monday
-    //   addDays(weekStartDate, 1), // Tuesday
-    //   ...
-    //   addDays(weekStartDate, 6), // Sunday
-    // ];
-    return [];
-  }
+interface CompactAppointmentCardProps {
+  appointment: PopulatedAppointment;
+}
 
-  /**
-   * TODO: Generate time slots (same as DayView)
-   */
-  function generateTimeSlots() {
-    // TODO: Implement (can be same as DayView)
-    return [];
-  }
-
-  /**
-   * TODO: Get appointments for a specific day
-   */
-  function getAppointmentsForDay(date: Date): Appointment[] {
-    // TODO: Filter appointments that fall on this specific day
-    return [];
-  }
-
-  /**
-   * TODO: Get appointments for a specific day and time slot
-   */
-  function getAppointmentsForDayAndSlot(date: Date, slotStart: Date): Appointment[] {
-    // TODO: Filter appointments for this day and time
-    return [];
-  }
-
-  const weekDays = getWeekDays();
-  const timeSlots = generateTimeSlots();
-
+function CompactAppointmentCard({ appointment }: CompactAppointmentCardProps) {
+  const typeConfig = APPOINTMENT_TYPE_CONFIG[appointment.type as AppointmentType];
+  const startTime = format(new Date(appointment.startTime), 'h:mm');
+  
   return (
-    <div className="week-view">
-      {/* Week header */}
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">
-          {/* TODO: Format week range (e.g., "Oct 14 - Oct 20, 2024") */}
-          Week View
-        </h3>
-        {doctor && (
-          <p className="text-sm text-gray-600">
-            Dr. {doctor.name} - {doctor.specialty}
-          </p>
-        )}
-      </div>
-
-      {/* Week grid - may need horizontal scroll on mobile */}
-      <div className="border border-gray-200 rounded-lg overflow-x-auto">
-        {/* TODO: Implement the week grid */}
-        <div className="text-center text-gray-500 py-12">
-          <p>Week View Grid Goes Here</p>
-          <p className="text-sm mt-2">
-            Implement 7-day grid (Mon-Sun) with time slots
-          </p>
-
-          {/* Placeholder to show appointments exist */}
-          {appointments.length > 0 && (
-            <div className="mt-4">
-              <p className="text-sm font-medium">
-                {appointments.length} appointment(s) for this week
-              </p>
-            </div>
-          )}
+    <div
+      className="text-xs p-2 mb-1.5 rounded-lg text-white shadow-md cursor-pointer hover:shadow-lg hover:scale-105 transition-all duration-200 group backdrop-blur-sm"
+      style={{ 
+        backgroundColor: `${typeConfig.color}f0`,
+        background: `linear-gradient(135deg, ${typeConfig.color}f0 0%, ${typeConfig.color}e0 100%)`,
+      }}
+      title={`${appointment.patient.name} - ${typeConfig.label} at ${startTime}`}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <div className="font-semibold truncate flex-1 group-hover:scale-105 transition-transform">
+          {appointment.patient.name}
         </div>
-
-        {/* TODO: Replace above with actual grid implementation */}
-        {/* Example structure:
-        <table className="min-w-full">
-          <thead>
-            <tr>
-              <th className="w-20 p-2 text-xs bg-gray-50">Time</th>
-              {weekDays.map((day, index) => (
-                <th key={index} className="p-2 text-xs bg-gray-50 border-l">
-                  <div className="font-semibold">{format(day, 'EEE')}</div>
-                  <div className="text-gray-600">{format(day, 'MMM d')}</div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {timeSlots.map((slot, slotIndex) => (
-              <tr key={slotIndex} className="border-t">
-                <td className="p-2 text-xs text-gray-600">{slot.label}</td>
-                {weekDays.map((day, dayIndex) => (
-                  <td key={dayIndex} className="p-1 border-l align-top min-h-[60px]">
-                    {getAppointmentsForDayAndSlot(day, slot.start).map(apt => (
-                      <AppointmentCard key={apt.id} appointment={apt} compact />
-                    ))}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        */}
+        <div className="w-2 h-2 bg-white rounded-full opacity-70 ml-1 flex-shrink-0"></div>
       </div>
-
-      {/* Empty state */}
-      {appointments.length === 0 && (
-        <div className="mt-4 text-center text-gray-500 text-sm">
-          No appointments scheduled for this week
-        </div>
-      )}
+      <div className="flex items-center gap-1 opacity-90">
+        <Clock className="w-3 h-3 flex-shrink-0" />
+        <span className="truncate">{startTime}</span>
+      </div>
     </div>
   );
 }
 
 /**
- * TODO: Consider reusing the AppointmentCard component from DayView
+ * WeekView Component
  *
- * You might want to add a "compact" prop to make it smaller for week view
+ * Renders a weekly calendar grid with appointments.
  */
+export function WeekView({ appointments, doctor, weekStartDate }: WeekViewProps) {
+  /**
+   * Generate array of 7 dates (Monday through Sunday)
+   */
+  const weekDays = useMemo((): Date[] => {
+    const days: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      days.push(addDays(weekStartDate, i));
+    }
+    return days;
+  }, [weekStartDate]);
+
+  /**
+   * Generate time slots (same as DayView)
+   */
+  const timeSlots = useMemo((): TimeSlot[] => {
+    const slots: TimeSlot[] = [];
+    const { startHour, endHour, slotDuration } = DEFAULT_CALENDAR_CONFIG;
+    
+    for (let hour = startHour; hour < endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += slotDuration) {
+        const start = new Date();
+        start.setHours(hour, minute, 0, 0);
+        
+        const end = new Date(start);
+        end.setMinutes(end.getMinutes() + slotDuration);
+        
+        const label = format(start, 'h:mm a');
+        
+        slots.push({ start, end, label });
+      }
+    }
+    
+    return slots;
+  }, []);
+
+  /**
+   * Get populated appointments with patient and doctor data
+   */
+  const populatedAppointments = useMemo(() => {
+    return appointmentService.getPopulatedAppointments(appointments);
+  }, [appointments]);
+
+  /**
+   * Get appointments for a specific day
+   */
+  function getAppointmentsForDay(date: Date): PopulatedAppointment[] {
+    return populatedAppointments.filter((appointment) => {
+      const appointmentDate = new Date(appointment.startTime);
+      return isSameDay(appointmentDate, date);
+    });
+  }
+
+  /**
+   * Get appointments for a specific day and time slot
+   */
+  function getAppointmentsForDayAndSlot(date: Date, slot: TimeSlot): PopulatedAppointment[] {
+    const dayAppointments = getAppointmentsForDay(date);
+    return dayAppointments.filter((appointment) => {
+      const appointmentStart = new Date(appointment.startTime);
+      const slotStart = new Date(date);
+      slotStart.setHours(slot.start.getHours(), slot.start.getMinutes(), 0, 0);
+      const slotEnd = new Date(date);
+      slotEnd.setHours(slot.end.getHours(), slot.end.getMinutes(), 0, 0);
+      
+      return appointmentStart >= slotStart && appointmentStart < slotEnd;
+    });
+  }
+
+  const weekEndDate = addDays(weekStartDate, 6);
+
+  return (
+    <div className="week-view" role="main" aria-label={`Weekly schedule for ${format(weekStartDate, 'MMM d')} - ${format(weekEndDate, 'MMM d, yyyy')}`}>
+      {/* Week header */}
+      <header className="mb-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center" aria-hidden="true">
+            <Grid3X3 className="w-4 h-4 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {format(weekStartDate, 'MMM d')} - {format(weekEndDate, 'MMM d, yyyy')}
+          </h1>
+        </div>
+        {doctor && (
+          <div className="flex items-center gap-2 text-gray-600 ml-11" role="banner" aria-label="Doctor information">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" aria-hidden="true"></div>
+            <span className="font-medium">Dr. {doctor.name}</span>
+            <span className="text-gray-400" aria-hidden="true">•</span>
+            <span>{doctor.specialty}</span>
+          </div>
+        )}
+      </header>
+
+      {/* Week grid - horizontal scroll on mobile */}
+      <div className="border border-gray-200 rounded-xl overflow-x-auto bg-white shadow-sm" role="table" aria-label="Weekly appointment schedule">
+        <table className="min-w-full">
+          <thead>
+            <tr role="row">
+              <th className="w-24 p-4 text-xs bg-gradient-to-r from-gray-50 to-gray-100 border-r border-gray-200 sticky left-0 z-10" scope="col">
+                <div className="font-semibold text-gray-700">Time</div>
+              </th>
+              {weekDays.map((day, index) => {
+                const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                return (
+                  <th key={index} className={`p-4 text-xs border-l border-gray-200 min-w-[140px] ${
+                    isToday 
+                      ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200' 
+                      : 'bg-gradient-to-br from-gray-50 to-gray-100'
+                  }`} scope="col" aria-label={`${format(day, 'EEEE, MMMM d')}${isToday ? ' (Today)' : ''}`}>
+                    <div className={`font-bold text-sm mb-1 ${
+                      isToday ? 'text-blue-700' : 'text-gray-900'
+                    }`}>
+                      {format(day, 'EEE')}
+                    </div>
+                    <div className={`text-xs ${
+                      isToday ? 'text-blue-600' : 'text-gray-600'
+                    }`}>
+                      {format(day, 'MMM d')}
+                    </div>
+                    {isToday && (
+                      <div className="w-2 h-2 bg-blue-500 rounded-full mx-auto mt-1 animate-pulse" aria-hidden="true"></div>
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {timeSlots.map((slot, slotIndex) => {
+              const isCurrentHour = new Date().getHours() === slot.start.getHours();
+              
+              return (
+                <tr key={slotIndex} className={`border-t border-gray-100 transition-colors duration-200 ${
+                  isCurrentHour ? 'bg-blue-50/30' : 'hover:bg-gray-50/50'
+                }`} role="row">
+                  <th className={`p-4 text-xs font-medium border-r border-gray-200 sticky left-0 z-10 ${
+                    isCurrentHour 
+                      ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 border-blue-200' 
+                      : 'bg-gradient-to-r from-gray-50 to-gray-100 text-gray-600'
+                  }`} scope="row" aria-label={`Time slot ${format(slot.start, 'h:mm a')}`}>
+                    <div className="text-center">
+                      <div className={`font-semibold ${
+                        isCurrentHour ? 'text-blue-700' : 'text-gray-900'
+                      }`}>
+                        {format(slot.start, 'h:mm')}
+                      </div>
+                      <div className={`text-xs ${
+                        isCurrentHour ? 'text-blue-600' : 'text-gray-500'
+                      }`}>
+                        {format(slot.start, 'a')}
+                      </div>
+                    </div>
+                  </th>
+                  {weekDays.map((day, dayIndex) => {
+                    const slotAppointments = getAppointmentsForDayAndSlot(day, slot);
+                    const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                    
+                    return (
+                      <td key={dayIndex} className={`p-2 border-l border-gray-200 align-top min-h-[70px] w-36 relative ${
+                        isToday ? 'bg-blue-50/20' : ''
+                      }`} role="gridcell" aria-label={`${format(day, 'EEEE')}, ${slotAppointments.length} appointment${slotAppointments.length !== 1 ? 's' : ''} at ${format(slot.start, 'h:mm a')}`}>
+                        {slotAppointments.map((appointment) => (
+                          <div
+                            key={appointment.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Appointment: ${appointment.patient.name}, ${APPOINTMENT_TYPE_CONFIG[appointment.type as AppointmentType].label}, ${format(new Date(appointment.startTime), 'h:mm a')}`}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                // Handle appointment selection
+                              }
+                            }}
+                          >
+                            <CompactAppointmentCard 
+                              appointment={appointment}
+                            />
+                          </div>
+                        ))}
+                        {/* Current time indicator for today */}
+                        {isToday && isCurrentHour && (
+                          <div className="absolute left-0 right-0 border-t-2 border-red-500 z-20" 
+                               style={{ top: `${(new Date().getMinutes() / 60) * 70}px` }}
+                               aria-label="Current time indicator">
+                            <div className="w-2 h-2 bg-red-500 rounded-full -mt-1 -ml-1 animate-pulse"></div>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Empty state */}
+      {appointments.length === 0 && (
+        <div className="mt-8 text-center py-16">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CalendarX className="w-8 h-8 text-gray-400" />
+          </div>
+          <h4 className="text-lg font-semibold text-gray-900 mb-2">No appointments this week</h4>
+          <p className="text-gray-500 max-w-sm mx-auto">
+            There are no appointments scheduled for the week of {format(weekStartDate, 'MMMM d, yyyy')}.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

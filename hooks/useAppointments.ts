@@ -54,32 +54,55 @@ interface UseAppointmentsReturn {
 export function useAppointments(params: UseAppointmentsParams): UseAppointmentsReturn {
   const { doctorId, date, startDate, endDate } = params;
 
-  // TODO: Add state for appointments, loading, error
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // TODO: Fetch doctor data
+  // Fetch doctor data
   const doctor = useMemo(() => {
-    // Implement: Get doctor by ID
-    // return appointmentService.getDoctorById(doctorId);
-    return undefined;
+    try {
+      return appointmentService.getDoctorById(doctorId);
+    } catch {
+      return undefined;
+    }
   }, [doctorId]);
 
-  // TODO: Fetch appointments when dependencies change
+  // Fetch appointments when dependencies change
   useEffect(() => {
-    // Implement: Fetch appointments
-    // Consider:
-    // - If startDate and endDate are provided, use date range
-    // - Otherwise, use single date
-    // - Set loading state
-    // - Handle errors
-    // - Set appointments
+    const fetchAppointments = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-    console.log('TODO: Fetch appointments for', { doctorId, date, startDate, endDate });
+        let fetchedAppointments: Appointment[];
 
-    // Placeholder - remove when implementing
-    setLoading(false);
+        // If date range is provided, use it (for week view)
+        if (startDate && endDate) {
+          fetchedAppointments = appointmentService.getAppointmentsByDoctorAndDateRange(
+            doctorId,
+            startDate,
+            endDate
+          );
+        } else {
+          // Otherwise use single date (for day view)
+          fetchedAppointments = appointmentService.getAppointmentsByDoctorAndDate(
+            doctorId,
+            date
+          );
+        }
+
+        // Sort appointments by time
+        const sortedAppointments = appointmentService.sortAppointmentsByTime(fetchedAppointments);
+        setAppointments(sortedAppointments);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch appointments'));
+        setAppointments([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAppointments();
   }, [doctorId, date, startDate, endDate]);
 
   return {
@@ -91,10 +114,49 @@ export function useAppointments(params: UseAppointmentsParams): UseAppointmentsR
 }
 
 /**
- * BONUS: Create additional hooks for specific use cases
- *
- * Examples:
- * - useDayViewAppointments(doctorId: string, date: Date)
- * - useWeekViewAppointments(doctorId: string, weekStartDate: Date)
- * - useDoctors() - hook to get all doctors
+ * Hook specifically for day view appointments
  */
+export function useDayViewAppointments(doctorId: string, date: Date) {
+  return useAppointments({ doctorId, date });
+}
+
+/**
+ * Hook specifically for week view appointments
+ */
+export function useWeekViewAppointments(doctorId: string, weekStartDate: Date) {
+  const weekEndDate = new Date(weekStartDate);
+  weekEndDate.setDate(weekStartDate.getDate() + 6);
+  weekEndDate.setHours(23, 59, 59, 999);
+
+  return useAppointments({
+    doctorId,
+    date: weekStartDate,
+    startDate: weekStartDate,
+    endDate: weekEndDate,
+  });
+}
+
+/**
+ * Hook to get all doctors
+ */
+export function useDoctors() {
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    try {
+      setLoading(true);
+      setError(null);
+      const allDoctors = appointmentService.getAllDoctors();
+      setDoctors(allDoctors);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch doctors'));
+      setDoctors([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { doctors, loading, error };
+}

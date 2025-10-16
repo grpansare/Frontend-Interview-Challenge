@@ -14,13 +14,15 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { format, startOfWeek, addDays, subDays } from 'date-fns';
+import { User, ChevronLeft, ChevronRight, Calendar, Grid3X3, Mail, Phone, AlertCircle, Search, X } from 'lucide-react';
 import type { CalendarView } from '@/types';
-
-// TODO: Import your components
-// import { DoctorSelector } from './DoctorSelector';
-// import { DayView } from './DayView';
-// import { WeekView } from './WeekView';
+import { useAppointments } from '@/hooks/useAppointments';
+import { DoctorSelector } from './DoctorSelector';
+import { DayView } from './DayView';
+import { WeekView } from './WeekView';
+import {appointmentService} from '@/services/appointmentService';
 
 interface ScheduleViewProps {
   selectedDoctorId: string;
@@ -32,17 +34,16 @@ interface ScheduleViewProps {
 }
 
 /**
+ * Get the start of the week (Monday) for a given date
+ */
+function getWeekStart(date: Date): Date {
+  return startOfWeek(date, { weekStartsOn: 1 }); // Monday = 1
+}
+
+/**
  * ScheduleView Component
  *
  * This is the main container component for the schedule interface.
- *
- * TODO: Implement this component
- *
- * Consider:
- * - How to structure the layout (header, controls, calendar)
- * - How to compose smaller components
- * - How to pass data down to child components
- * - How to handle user interactions (view switching, date changes)
  */
 export function ScheduleView({
   selectedDoctorId,
@@ -52,45 +53,208 @@ export function ScheduleView({
   onDateChange,
   onViewChange,
 }: ScheduleViewProps) {
-  // TODO: Use the useAppointments hook to fetch data
-  // const { appointments, doctor, loading, error } = useAppointments({
-  //   doctorId: selectedDoctorId,
-  //   date: selectedDate,
-  // });
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Calculate week start for week view
+  const weekStartDate = useMemo(() => getWeekStart(selectedDate), [selectedDate]);
+  
+  // Use the useAppointments hook to fetch data
+  const { appointments: rawAppointments, doctor, loading, error } = useAppointments({
+    doctorId: selectedDoctorId,
+    date: selectedDate,
+    startDate: view === 'week' ? weekStartDate : undefined,
+    endDate: view === 'week' ? addDays(weekStartDate, 6) : undefined,
+  });
+  
+  // Get populated appointments with patient and doctor data
+  const populatedAppointments = useMemo(() => {
+    return appointmentService.getPopulatedAppointments(rawAppointments);
+  }, [rawAppointments]);
+  
+  // Filter appointments based on search query
+  const appointments = useMemo(() => {
+    if (!searchQuery.trim()) return rawAppointments;
+    
+    const query = searchQuery.toLowerCase();
+    const filteredPopulated = populatedAppointments.filter(appointment => {
+      // Search in patient name, appointment type, or notes
+      const patientName = appointment.patient?.name?.toLowerCase() || '';
+      const appointmentType = appointment.type?.toLowerCase() || '';
+      const notes = appointment.notes?.toLowerCase() || '';
+      
+      return patientName.includes(query) || 
+             appointmentType.includes(query) || 
+             notes.includes(query);
+    });
+    
+    // Return the original appointment objects (not populated) for consistency
+    return rawAppointments.filter(apt => 
+      filteredPopulated.some(filtered => filtered.id === apt.id)
+    );
+  }, [rawAppointments, populatedAppointments, searchQuery]);
+
+  // Navigation handlers
+  const handlePreviousDate = () => {
+    if (view === 'day') {
+      onDateChange(subDays(selectedDate, 1));
+    } else {
+      onDateChange(subDays(selectedDate, 7));
+    }
+  };
+
+  const handleNextDate = () => {
+    if (view === 'day') {
+      onDateChange(addDays(selectedDate, 1));
+    } else {
+      onDateChange(addDays(selectedDate, 7));
+    }
+  };
+
+  const handleToday = () => {
+    onDateChange(new Date());
+  };
+
+  if (!selectedDoctorId) {
+    return (
+      <div className="card card-padding">
+        <div className="text-center">
+          <div className="doctor-icon">
+            <User style={{ width: '2rem', height: '2rem', color: 'white' }} />
+          </div>
+          <h2 className="card-title">Select a Doctor</h2>
+          <p className="card-subtitle">Choose a doctor to view their appointment schedule</p>
+          <div className="selector-container">
+            <DoctorSelector
+              selectedDoctorId={selectedDoctorId}
+              onDoctorChange={onDoctorChange}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg">
-      {/* TODO: Implement the component structure */}
-
+    <div className="card">
       {/* Header with doctor info and controls */}
-      <div className="border-b border-gray-200 p-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Doctor Schedule</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              TODO: Display doctor name and specialty
-            </p>
+      <div className="header-section">
+        <div className="header-flex">
+          <div className="doctor-info">
+            <div className="doctor-avatar">
+              <User style={{ width: '1.25rem', height: '1.25rem', color: 'white' }} />
+            </div>
+            <div className="doctor-details">
+              <h2>
+                {doctor ? `Dr. ${doctor.name}` : 'Doctor Schedule'}
+              </h2>
+              {doctor && (
+                <div className="doctor-meta">
+                  <span className="meta-item">
+                    <div className="dot"></div>
+                    {doctor.specialty}
+                  </span>
+                  <span className="meta-item">
+                    <Mail style={{ width: '0.75rem', height: '0.75rem' }} />
+                    {doctor.email}
+                  </span>
+                  <span className="meta-item">
+                    <Phone style={{ width: '0.75rem', height: '0.75rem' }} />
+                    {doctor.phone}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex gap-4">
-            {/* TODO: Add DoctorSelector component */}
-            <div className="text-sm text-gray-500">Doctor Selector</div>
+          {/* Controls Section */}
+          <div className="controls-section">
+            {/* Top Row: Doctor Selector and Search */}
+            <div className="control-group">
+              <DoctorSelector
+                selectedDoctorId={selectedDoctorId}
+                onDoctorChange={onDoctorChange}
+              />
+            </div>
 
-            {/* TODO: Add date picker */}
-            <div className="text-sm text-gray-500">Date Picker</div>
-
-            {/* TODO: Add view toggle buttons (Day/Week) */}
-            <div className="flex gap-2">
+            <div className="control-group">
+              <div className="search-container">
+                <Search className="search-icon" style={{ width: '1rem', height: '1rem' }} />
+                <input
+                  type="text"
+                  placeholder="Search appointments..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="clear-button"
+                  >
+                    <X style={{ width: '1rem', height: '1rem' }} />
+                  </button>
+                )}
+              </div>
+              {searchQuery && (
+                <div className="search-results">
+                  {appointments.length} result{appointments.length !== 1 ? 's' : ''} found
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Navigation Controls */}
+          <div className="nav-controls">
+            {/* Date Navigation */}
+            <div className="date-nav">
               <button
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded"
+                onClick={handlePreviousDate}
+                className="nav-button"
+                title={`Previous ${view}`}
+              >
+                <ChevronLeft style={{ width: '1rem', height: '1rem' }} />
+              </button>
+              
+              <div className="date-display">
+                {view === 'day' 
+                  ? format(selectedDate, 'MMM d, yyyy')
+                  : `${format(weekStartDate, 'MMM d')} - ${format(addDays(weekStartDate, 6), 'MMM d')}`
+                }
+              </div>
+              
+              <button
+                onClick={handleNextDate}
+                className="nav-button"
+                title={`Next ${view}`}
+              >
+                <ChevronRight style={{ width: '1rem', height: '1rem' }} />
+              </button>
+              
+              <div className="divider"></div>
+              
+              <button
+                onClick={handleToday}
+                className="today-button"
+              >
+                Today
+              </button>
+            </div>
+
+            {/* View Toggle */}
+            <div className="view-toggle">
+              <button
+                className={`view-button ${view === 'day' ? 'active' : 'inactive'}`}
                 onClick={() => onViewChange('day')}
               >
+                <Calendar style={{ width: '1rem', height: '1rem' }} />
                 Day
               </button>
               <button
-                className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded"
+                className={`view-button ${view === 'week' ? 'active' : 'inactive'}`}
                 onClick={() => onViewChange('week')}
               >
+                <Grid3X3 style={{ width: '1rem', height: '1rem' }} />
                 Week
               </button>
             </div>
@@ -99,29 +263,40 @@ export function ScheduleView({
       </div>
 
       {/* Calendar View */}
-      <div className="p-6">
-        {/* TODO: Conditionally render DayView or WeekView based on view prop */}
-        <div className="text-center text-gray-500 py-12">
-          <p>Calendar View Goes Here</p>
-          <p className="text-sm mt-2">
-            Implement DayView and WeekView components and render based on selected view
-          </p>
-        </div>
-
-        {/* TODO: Uncomment when components are ready */}
-        {/* {view === 'day' ? (
-          <DayView
-            appointments={appointments}
-            doctor={doctor}
-            date={selectedDate}
-          />
+      <div className="p-8">
+        {loading ? (
+          <div className="text-center py-16">
+            <div className="relative">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600 mx-auto"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-600 animate-spin" style={{animationDuration: '1.5s', animationDirection: 'reverse'}}></div>
+            </div>
+            <p className="text-gray-600 mt-4 font-medium">Loading appointments...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+            <div className="text-red-600 font-semibold mb-2">Error loading appointments</div>
+            <p className="text-gray-500 text-sm max-w-md mx-auto">{error.message}</p>
+          </div>
         ) : (
-          <WeekView
-            appointments={appointments}
-            doctor={doctor}
-            weekStartDate={getWeekStart(selectedDate)}
-          />
-        )} */}
+          <>
+            {view === 'day' ? (
+              <DayView
+                appointments={appointments}
+                doctor={doctor}
+                date={selectedDate}
+              />
+            ) : (
+              <WeekView
+                appointments={appointments}
+                doctor={doctor}
+                weekStartDate={weekStartDate}
+              />
+            )}
+          </>
+        )}
       </div>
     </div>
   );
